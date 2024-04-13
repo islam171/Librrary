@@ -4,31 +4,30 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tokens;
-use App\Models\User;
+use App\Models\Users;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
     public function register(Request $request){
         $name = $request->name;
-        $email = $request->name;
         $password = $request->password;
 
-        foreach (User::all() as $item){
+        foreach (Users::all() as $item){
             if($item -> name == $name){
                 return response("Такой пользователь уже существует");
             }
         }
 
-        $user = User::create([
+        $password = Hash::make($password);
+
+        $user = Users::create([
             'name' => $name,
-            'email' => $email,
             'password' => $password,
         ]);
 
-        Auth::login($user);
         return $user;
     }
 
@@ -37,13 +36,15 @@ class AuthController extends Controller
         $password = $request->password;
 
         $user = null;
-        foreach (User::all() as $item){
+        foreach (Users::all() as $item){
             if($item -> name == $name){
                 $user = $item;
             }
         }
 
-        if($user || Hash::check($user->password, $password)){
+        return Hash::check($user->password, $password);
+
+        if($user && Hash::check($user->password, $password)){
 
             $oldToken = Tokens::where('userId', '=', $user->id);
             if(!is_null($oldToken->get())){
@@ -69,8 +70,6 @@ class AuthController extends Controller
         }else{
             return "Неверный логин или пароль";
         }
-
-
 
     }
 }

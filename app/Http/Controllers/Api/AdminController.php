@@ -9,58 +9,22 @@ use App\Models\Blockings;
 use App\Models\BlockUser;
 use App\Models\Tokens;
 use App\Models\User;
+use App\Models\userbooks;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
     public function getAdmin(Request $request){
 
-        $auth = $request->headers;
-        return $auth['Authorization'];
-
-        $token= Tokens::where('value', '=', $auth)->get();
-
-        if($token->count() < 1){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Нет доступа'
-                ],
-                404
-            );
-        }
-        $user = User::find($token[0]->userId);
-
-        if(is_null($user)){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Авторизуйтесь'
-                ],
-                404
-            );
-        }
-
-        $admin = Admins::where('userId', '=', $user->id);
-
-        if($admin->get()->count() > 0){
-            return response()->json(
-                [
-                    'status' => 1,
-                    'message' => true
-                ]
-            );
-        }else{
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => false
-                ]
-            );
-        }
+        return response()->json(
+            [
+                'status' => 1,
+                'message' => true
+            ]
+        );
 
     }
-
 
     public function blockUser(Request $request){
 
@@ -68,104 +32,31 @@ class AdminController extends Controller
 
         $id = $request->id;
 
-        $auth = $request->header('Authorization');
-        $auth = str_replace('Bearer ', "", $auth);
-
-        $token = Tokens::where('value', '=', $auth)->get();
-
-        if($token->count() < 1){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Нет доступа'
-                ],
-                404
-            );
-        }
-        $user = User::find($token[0]->userId);
-
-        if(is_null($user)){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Авторизуйтесь'
-                ],
-                404
-            );
-        }
-        // Проверка на авторизацию закрыто))
-
-        // Проверка на админа
-        $admin = Admins::where('userId', '=', $user->id);
-
-        if(is_null($admin->get())){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => "Нет прав"
-                ], 400
-            );
-        }
-
-
         $userBlock =  Blockings::where('userId', '=', $id)->get();
         if($userBlock->count() > 0){
             return response()->json(
                 [
                     'status' => 0,
-                    'message' => "Пользовотель заблокирован"
+                    'message' => "Пользовотель уже заблокирован"
                 ], 403
             );
         }
 
 
         $doc = Blockings::create(['userId' => $id]);
-        return new BlockingsResource($doc);
+        if($doc->get()->count() > 0){
+            return response()->json(
+                [
+                    'status' => 1,
+                    'message' => "Пользовотель заблокирован"
+                ]
+            );
+        }
 
     }
     public function unlockUser(Request $request){
 
         $id = $request->id;
-
-        $auth = $request->header('Authorization');
-        $auth = str_replace('Bearer ', "", $auth);
-
-        $token = Tokens::where('value', '=', $auth)->get();
-
-        if($token->count() < 1){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Нет доступа'
-                ],
-                404
-            );
-        }
-        $user = User::find($token[0]->userId);
-
-        if(is_null($user)){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Авторизуйтесь'
-                ],
-                404
-            );
-        }
-        // Проверка на авторизацию закрыто))
-
-        // Проверка на админа
-        $admin = Admins::where('userId', '=', $user->id);
-
-        if(is_null($admin->get())){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => "Нет прав"
-                ], 400
-            );
-        }
-
 
         $userBlock =  Blockings::where('userId', '=', $id);
         if($userBlock->get()->count() < 1){
@@ -195,36 +86,10 @@ class AdminController extends Controller
         }
     }
 
+    public function getUsers(Request $request){
 
-
-    public function getUsers(){
-        $auth = getallheaders()['Authorization'];
-        $token= Tokens::where('value', '=', $auth)->get();
-
-        if($token->count() < 1){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Нет доступа'
-                ],
-                404
-            );
-        }
-        $user = User::find($token[0]->userId);
-
-        if(is_null($user)){
-            return response()->json(
-                [
-                    'status' => 0,
-                    'message' => 'Авторизуйтесь'
-                ],
-                404
-            );
-        }
-        // Проверка на авторизацию закрыто))
-
-        // Проверка на админа
-        $admin = Admins::where('userId', '=', $user->id);
+        $userId = $request->userId;
+        $admin = Admins::where('userId', '=', $userId);
 
         if(is_null($admin->get())){
             return response()->json(
@@ -238,7 +103,7 @@ class AdminController extends Controller
         $res = [];
         $users = User::all();
         foreach ($users as $item){
-            if($item->id == $user->id){
+            if($item->id == $userId){
                 continue;
             }
             $bloking = Blockings::where('userId', '=', $item->id)->get();
@@ -256,6 +121,54 @@ class AdminController extends Controller
 
         }
         return $res;
+    }
+
+    public function updateUserBook(Request $request, string $id)
+    {
+        $userId = $request->userId;
+        $bookId = $request->bookId;
+
+        $taking = userbooks::find($id);
+        if(is_null($taking)){
+            return response()->json(
+                [
+                    'status' => 0,
+                    'message' => 'Не найдено'
+                ],
+                404
+            );
+        }
+
+        DB::beginTransaction();
+        try{
+            $taking->userId = $userId;
+            $taking->bookId = $bookId;
+            return $taking;
+            $taking->save();
+            DB::commit();
+        }catch (\Exception $error){
+            DB::rollBack();
+            $taking = null;
+        }
+
+        if(is_null($taking)){
+            return response()->json(
+                [
+                    'status' => 0,
+                    'message' => 'Server error'
+                ],
+                500
+            );
+        }else{
+            return response()->json(
+                [
+                    'status' => 0,
+                    'message' => 'Изменение прошло успешно'
+                ],
+                200
+            );
+        }
+
     }
 
 
